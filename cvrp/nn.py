@@ -1,6 +1,6 @@
 import numpy as np
 
-from cvrp_instance import *
+from .instance import *
 
 
 def nearest_neighbor_step(instance, solution):

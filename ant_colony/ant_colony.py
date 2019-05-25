@@ -1,7 +1,7 @@
 import numpy as np
 
-from cvrp_instance import *
-from cvrp_nn import *
+from cvrp.instance import *
+from cvrp.nn import *
 
 
 def roulette_wheel(probability_vector, random_state=None):

@@ -28,7 +28,7 @@ def create_route_tracer(instance, solution):
     return route_tracer
 
 
-def instance_figure(instance):
+def create_instance_figure(instance):
     
     tracers = []
     
@@ -44,7 +44,7 @@ def instance_figure(instance):
     return figure
 
 
-def solution_figure(instance, solution):
+def create_solution_figure(instance, solution):
     
     tracers = []
     
