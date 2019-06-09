@@ -1,73 +1,35 @@
 import numpy as np
 
 from cvrp.instance import *
-from cvrp.nn import *
+from ant_colony.desireability import *
 
 
-def roulette_wheel(probability_vector, random_state=None):
+def calculate_desireability_vector(instance, colony, solution, feasible_steps=None):
 
-	if random_state is None:
-		random_state = np.random
-
-	wheel = np.cumsum(probability_vector/ np.sum(probability_vector))
-	random_number = random_state.rand()
-
-	index = next((-i for i, x in enumerate(wheel[::-1]) if x < random_number), -len(wheel))
-
-	return index
-
-
-def calculate_probability_vector(instance, colony, solution, feasible_steps=None):
-
-	pheromone_vector = colony['pheromone_matrix'][solution['route'][-1]]
-	distance_vector = instance['distance_matrix'][solution['route'][-1]]
-	savings_vector = colony['savings_matrix'][solution['route'][-1]]
-
-	tau = np.power(pheromone_vector, colony['alpha'])
-	eta = np.power(np.array([1.])/distance_vector, colony['beta'])
-	mu = np.power(savings_vector, colony['gama'])
+	desireability_vector = colony['desireability_matrix'][solution['route'][-1]]
 
 	if feasible_steps is None:
 		feasible_steps = find_feasible_steps(instance, solution, distance_vector)
 
-	probability_vector = np.array([])
+	desireability_vector = np.where(feasible_steps, desireability_vector, 0.)
 
-	if np.any(np.isinf(np.where(feasible_steps, eta, 0.))):
-		probability_vector = np.where(np.isinf(eta), 1., 0.)
-	elif np.all(mu == 0.):
-		probability_vector = tau * eta
-	else:
-		probability_vector = tau * eta * mu
+	if np.any(np.isnan(desireability_vector)):
+		desireability_vector = np.where(np.isnan(desireability_vector), 1., 0.)
 
-	probability_vector = np.where(feasible_steps, probability_vector, 0.)
-
-	return probability_vector
+	return desireability_vector
 
 
-def initialize_pheromone_matrix(instance):
+def spin_roulette(desireability_vector, random_state=None):
 
-	nn_solution = nearest_neighbor_route(instance)
+	if random_state is None:
+		random_state = np.random
+  
+	roulette_strip = np.cumsum(desireability_vector)
+	spin = random_state.rand() * np.max(roulette_strip)
 
-	pheromone_matrix = np.ones(instance['distance_matrix'].shape)
-	pheromone_matrix *= instance['n'] / nn_solution['route_length']
+	winner = np.where(spin < roulette_strip)[0][0]
 
-	return pheromone_matrix
-
-
-def update_pheromone_matrix(colony):
-    
-	avg_distance = np.mean([ant['route_length'] for ant in colony['ants']])
-	colony['pheromone_matrix'] *= colony['rho'] + colony['theta'] / avg_distance
-
-	for rank, ant in enumerate(colony['ants'][:colony['sigma']-1]):
-		for i, _ in enumerate(ant['route'][:-1]):
-			colony['pheromone_matrix'][ant['route'][i]][ant['route'][i+1]] += (colony['sigma'] - rank-1) / ant['route_length']
-
-	ant_star = colony['ant_star']
-	for i, _ in enumerate(ant_star['route'][:-1]):
-		colony['pheromone_matrix'][ant_star['route'][i]][ant_star['route'][i+1]] += colony['sigma'] / ant_star['route_length']
-
-	return colony
+	return winner
 
 
 def initialize_ants(instance):
@@ -85,10 +47,10 @@ def initialize_ants(instance):
 def initialize_ant_colony(
 	    instance,
 	    max_iter=50000, max_stable_iter=1000,
-	    alpha=2, beta=5, gama=9, rho=.8, theta=80, sigma=3):
-
+	    alpha=2, beta=5, gamma=9, rho=.8, theta=80, sigma=3):
+	
 	pheromone_matrix = initialize_pheromone_matrix(instance)
-	savings_matrix = calculate_savings_matrix(instance)
+	eta_mu_matrix = calculate_eta_mu_matrix(instance, beta, gamma)
 
 	ants = []
 	ant_star = None
@@ -97,23 +59,25 @@ def initialize_ant_colony(
 
 	colony = dict(
 	    max_iter=max_iter, max_stable_iter=max_stable_iter,
-	    alpha=alpha, beta=beta, gama=gama, rho=rho, theta=theta, sigma=sigma,
-	    pheromone_matrix=pheromone_matrix, savings_matrix=savings_matrix,
+	    alpha=alpha, beta=beta, gamma=gamma, rho=rho, theta=theta, sigma=sigma,
+	    pheromone_matrix=pheromone_matrix, eta_mu_matrix=eta_mu_matrix,
 	    ants=ants, ant_star=ant_star, current_iter=current_iter, stable_iter=stable_iter)
 
 	return colony
 
 
-def ant_step(instance, colony, ant, random_state):
+def ant_step(instance, colony, ant, random_state=None):
+
+	if random_state is None:
+	    random_state = np.random
     
 	feasible_steps = find_feasible_steps(instance, ant)
 
 	if ~np.any(feasible_steps):
-	    ant = move_to_depot(instance, ant)
+		ant = move_to_depot(instance, ant)
 	else:
-	    probability_vector = calculate_probability_vector(instance, colony, ant)
-	    city = roulette_wheel(probability_vector, random_state)
-
+	    desireability_vector = calculate_desireability_vector(instance, colony, ant, feasible_steps)
+	    city = spin_roulette(desireability_vector, random_state)
 	    ant = move_to_city(instance, ant, city)
 
 	return ant
@@ -149,29 +113,31 @@ def process_colony_routes(instance, colony, random_state=None):
 
 
 def colony_iteration(instance, colony, random_state=None):
-    
+
 	if random_state is None:
-	    random_state = np.random
-	    
+		random_state = np.random
+
+	colony = update_desireability_matrix(colony)
+
 	colony = process_colony_routes(instance, colony, random_state)
 	colony['ants'] = sorted(colony['ants'], key=lambda ant: ant['route_length'])
 
 	if colony['ant_star'] is None:
-	    colony['ant_star'] = colony['ants'][0]
+		colony['ant_star'] = colony['ants'][0]
 	elif colony['ants'][0]['route_length'] < colony['ant_star']['route_length']:
-	    colony['ant_star'] = colony['ants'][0]
-	    colony['stable_iter'] = 0
+		colony['ant_star'] = colony['ants'][0]
+		colony['stable_iter'] = 0
 	else:
-	    colony['stable_iter'] += 1
-	    
+		colony['stable_iter'] += 1
+
 	colony = update_pheromone_matrix(colony)
-	    
+
 	colony['current_iter'] += 1
 
 	return colony
 
 
-def solve_ant_colony(
+def solve(
 		instance, ant_colony=None, random_state=None,
 		log_history=False, report_iteration=None):
     

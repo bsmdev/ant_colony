@@ -1,21 +1,6 @@
 import numpy as np
 
 
-def calculate_savings(city_vector, depot_vector):
-    
-	savings_vector = city_vector[0] + depot_vector - city_vector
-
-	return savings_vector
-
-
-def calculate_savings_matrix(instance):
-    
-	distance_matrix = instance['distance_matrix']
-	savings_matrix = np.apply_along_axis(calculate_savings, 1, distance_matrix, distance_matrix[0])
-
-	return savings_matrix
-
-
 def initialize_solution(instance):
 
 	solution = dict(
