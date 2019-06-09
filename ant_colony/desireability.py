@@ -17,7 +17,7 @@ def calculate_savings_matrix(instance):
 
 	savings_matrix = np.apply_along_axis(calculate_savings, 1, distance_matrix, distance_matrix[0])
 	savings_matrix = np.where(
-		savings_matrix < np.finfo(np.float64).eps,
+		savings_matrix < 1.,
 		np.ones(np.shape(savings_matrix)),
 		savings_matrix)
 
@@ -41,11 +41,17 @@ def update_pheromone_matrix(colony):
 
 	for rank, ant in enumerate(colony['ants'][:colony['sigma']-1]):
 		for i, _ in enumerate(ant['route'][:-1]):
-			colony['pheromone_matrix'][ant['route'][i]][ant['route'][i+1]] += (colony['sigma'] - rank-1) / ant['route_length']
+			a = ant['route'][i]
+			b = ant['route'][i+1]
+			colony['pheromone_matrix'][a][b] += (colony['sigma'] - rank-1) / ant['route_length']
+			colony['pheromone_matrix'][b][a] += (colony['sigma'] - rank-1) / ant['route_length']
 
 	ant_star = colony['ant_star']
 	for i, _ in enumerate(ant_star['route'][:-1]):
-		colony['pheromone_matrix'][ant_star['route'][i]][ant_star['route'][i+1]] += colony['sigma'] / ant_star['route_length']
+		a = ant_star['route'][i]
+		b = ant_star['route'][i+1]
+		colony['pheromone_matrix'][a][b] += colony['sigma'] / ant_star['route_length']
+		colony['pheromone_matrix'][b][a] += colony['sigma'] / ant_star['route_length']
 
 	return colony
 
