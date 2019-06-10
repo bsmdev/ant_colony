@@ -2,11 +2,16 @@ import numpy as np
 
 from cvrp.instance import *
 from ant_colony.desireability import *
+from ant_colony.atomic import *
 
 
 def calculate_desireability_vector(instance, colony, solution, feasible_steps=None):
 
 	desireability_vector = colony['desireability_matrix'][solution['route'][-1]]
+
+	if 'phi_matrix' in colony:
+		phi_vector = calculate_phi_vector(instance, colony, solution)
+		desireability_vector = desireability_vector * phi_vector
 
 	if feasible_steps is None:
 		feasible_steps = find_feasible_steps(instance, solution, distance_vector)

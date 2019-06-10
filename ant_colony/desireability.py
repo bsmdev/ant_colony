@@ -1,6 +1,5 @@
 import numpy as np
 
-from cvrp.instance import *
 from cvrp.nn import *
 
 
