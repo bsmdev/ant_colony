@@ -28,13 +28,13 @@ def calculate_phi_vector(instance, colony, solution):
 	if q > 0:
 		phi_vector = np.where(
 			phi_vector > 0.,
-			np.power(phi_vector, delta*q),
-			np.power(-1./phi_vector, delta*q))
+			np.power(phi_vector, delta*q*q),
+			np.power(-1./phi_vector, delta*q*q))
 	else:
 		phi_vector = np.where(
 			phi_vector > 0.,
-			np.power(1./phi_vector, -delta*q),
-			np.power(-phi_vector, -delta*q))
+			np.power(1./phi_vector, delta*q*q),
+			np.power(-phi_vector, delta*q*q))
 
 	return phi_vector
 
